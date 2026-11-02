@@ -63,7 +63,6 @@ body{
 .input-box button:active{opacity:.8}
 .input-box button:disabled{opacity:.4;cursor:not-allowed}
 
-/* result */
 .result{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius);padding:20px;margin-bottom:12px;
@@ -71,15 +70,7 @@ body{
 .result .teams{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .result .team{text-align:center;flex:1}
 .result .team .name{font-size:15px;font-weight:600}
-.result .team .form{display:flex;gap:3px;justify-content:center;margin-top:8px}
-.result .team .form .dot{
-  width:18px;height:18px;border-radius:4px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:9px;font-weight:700;color:var(--bg);
-}
-.result .team .form .dot.W{background:var(--accent)}
-.result .team .form .dot.D{background:var(--text3)}
-.result .team .form .dot.L{background:var(--danger)}
+.result .team .pos{font-size:11px;color:var(--text3);margin-top:4px}
 .result .score{
   font-size:32px;font-weight:700;letter-spacing:-.03em;
   text-align:center;margin:16px 0;
@@ -87,7 +78,6 @@ body{
 }
 .result .score .dash{color:var(--text3);margin:0 8px}
 
-/* probabilities */
 .probs{margin-top:16px}
 .probs .bar{
   display:flex;height:6px;border-radius:3px;overflow:hidden;
@@ -100,7 +90,6 @@ body{
 .probs .labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text3)}
 .probs .labels span b{color:var(--text);font-weight:600}
 
-/* stats */
 .stats{
   display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;
 }
@@ -111,7 +100,6 @@ body{
 .stats .stat .val{font-size:16px;font-weight:700}
 .stats .stat .lbl{font-size:10px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
 
-/* loading */
 .loading{
   text-align:center;padding:40px 0;
   color:var(--text3);font-size:13px;
@@ -133,7 +121,7 @@ body{
 <div class="wrap">
   <div class="hdr">
     <h1>predicció</h1>
-    <p>Posa dos equips i obtén una predicció basada en les seves dades recents</p>
+    <p>Posa dos equips i obtén una predicció basada en les dades de la lliga</p>
   </div>
 
   <div class="input-box">
@@ -156,11 +144,11 @@ body{
     <div class="teams">
       <div class="team">
         <div class="name" id="r-name1"></div>
-        <div class="form" id="r-form1"></div>
+        <div class="pos" id="r-pos1"></div>
       </div>
       <div class="team">
         <div class="name" id="r-name2"></div>
-        <div class="form" id="r-form2"></div>
+        <div class="pos" id="r-pos2"></div>
       </div>
     </div>
     <div class="score">
@@ -190,38 +178,33 @@ body{
 <script>
 const API = 'https://www.thesportsdb.com/api/v1/json/123';
 
+async function api(path){
+  const r = await fetch(`${API}/${path}`);
+  if(!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
 async function searchTeam(name){
-  const r = await fetch(`${API}/searchteams.php?t=${encodeURIComponent(name)}`);
-  const d = await r.json();
+  const d = await api(`searchteams.php?t=${encodeURIComponent(name)}`);
   if(d.teams && d.teams.length > 0) return d.teams[0];
   return null;
 }
 
-async function getTeamEvents(teamId){
+async function getLeagueTable(leagueId){
   try{
-    const r = await fetch(`${API}/eventslast.php?id=${teamId}`);
-    const d = await r.json();
-    if(d.results && d.results.length > 0) return d.results.slice(0, 5);
+    const d = await api(`lookuptable.php?l=${leagueId}&s=2025-2026`);
+    if(d.table && d.table.length > 0) return d.table;
+  } catch(e){}
+  try{
+    const d = await api(`lookuptable.php?l=${leagueId}`);
+    if(d.table && d.table.length > 0) return d.table;
   } catch(e){}
   return [];
 }
 
-function parseForm(events){
-  const form = [];
-  let gf = 0, ga = 0;
-  for(const ev of events){
-    const hs = parseInt(ev.strHomeScore) || 0;
-    const as = parseInt(ev.strAwayScore) || 0;
-    const isHome = ev.intHomeTeam && ev.intHomeTeam.toString() === ev.idHome.toString();
-    const myGoals = isHome ? hs : as;
-    const theirGoals = isHome ? as : hs;
-    gf += myGoals;
-    ga += theirGoals;
-    if(myGoals > theirGoals) form.push('W');
-    else if(myGoals === theirGoals) form.push('D');
-    else form.push('L');
-  }
-  return { form, gf, ga, count: events.length };
+function findInTable(table, teamName){
+  const lower = teamName.toLowerCase();
+  return table.find(t => t.strTeam && t.strTeam.toLowerCase() === lower) || null;
 }
 
 function poisson(lambda, k){
@@ -261,39 +244,56 @@ async function predict(){
 
     if(!team1 || !team2){
       const missing = !team1 ? n1 : n2;
-      throw `No he trobat "${missing}". Prova amb el nom oficial (ex: "Barcelona", "Real Madrid", "Liverpool").`;
+      throw `No he trobat "${missing}". Prova amb el nom en anglès o oficial (ex: "Barcelona", "Real Madrid", "Man United").`;
     }
 
-    const ev1 = await getTeamEvents(team1.idTeam);
-    const ev2 = await getTeamEvents(team2.idTeam);
+    // Get league tables
+    let table1 = [];
+    let table2 = [];
+    if(team1.idLeague) table1 = await getLeagueTable(team1.idLeague);
+    if(team2.idLeague) table2 = await getLeagueTable(team2.idLeague);
 
-    const d1 = parseForm(ev1);
-    const d2 = parseForm(ev2);
+    // Find teams in tables
+    const row1 = findInTable(table1, team1.strTeam);
+    const row2 = findInTable(table2, team2.strTeam);
 
-    // Calculate attack/defense ratings
-    const avgGF = 1.35, avgGA = 1.15; // league averages approx
+    // Calculate stats
+    let gf1, ga1, pos1, played1;
+    let gf2, ga2, pos2, played2;
 
-    let attack1 = d1.count ? d1.gf / d1.count : avgGF;
-    let defense1 = d1.count ? d1.ga / d1.count : avgGA;
-    let attack2 = d2.count ? d2.gf / d2.count : avgGF;
-    let defense2 = d2.count ? d2.ga / d2.count : avgGA;
+    if(row1){
+      played1 = parseInt(row1.intPlayed) || 1;
+      gf1 = (parseInt(row1.intGoalsFor) || 0) / played1;
+      ga1 = (parseInt(row1.intGoalsAgainst) || 0) / played1;
+      pos1 = parseInt(row1.intRank) || 0;
+    } else {
+      gf1 = 1.3; ga1 = 1.2; pos1 = 0; played1 = 0;
+    }
 
-    // Poisson lambdas
-    let lambdaHome = (attack1 / avgGA) * (defense2 / avgGF) * avgGF * 1.25; // home advantage
-    let lambdaAway = (attack2 / avgGA) * (defense1 / avgGF) * avgGA;
+    if(row2){
+      played2 = parseInt(row2.intPlayed) || 1;
+      gf2 = (parseInt(row2.intGoalsFor) || 0) / played2;
+      ga2 = (parseInt(row2.intGoalsAgainst) || 0) / played2;
+      pos2 = parseInt(row2.intRank) || 0;
+    } else {
+      gf2 = 1.3; ga2 = 1.2; pos2 = 0; played2 = 0;
+    }
 
-    // Clamp
-    lambdaHome = Math.max(0.2, Math.min(4, lambdaHome));
-    lambdaAway = Math.max(0.2, Math.min(4, lambdaAway));
+    // Poisson model with home advantage
+    const leagueAvg = 1.35;
+    let lambdaHome = (gf1 / leagueAvg) * (ga2 / leagueAvg) * leagueAvg * 1.3;
+    let lambdaAway = (gf2 / leagueAvg) * (ga1 / leagueAvg) * leagueAvg;
+
+    lambdaHome = Math.max(0.2, Math.min(4.5, lambdaHome));
+    lambdaAway = Math.max(0.2, Math.min(4.5, lambdaAway));
 
     const pred = predictScores(lambdaHome, lambdaAway);
 
     // Render
     document.getElementById('r-name1').textContent = team1.strTeam;
     document.getElementById('r-name2').textContent = team2.strTeam;
-
-    document.getElementById('r-form1').innerHTML = d1.form.map(f => `<div class="dot ${f}">${f}</div>`).join('') || '<span style="font-size:11px;color:var(--text3)">sense dades</span>';
-    document.getElementById('r-form2').innerHTML = d2.form.map(f => `<div class="dot ${f}">${f}</div>`).join('') || '<span style="font-size:11px;color:var(--text3)">sense dades</span>';
+    document.getElementById('r-pos1').textContent = pos1 ? `Posició: ${pos1}` : 'Sense dades de lliga';
+    document.getElementById('r-pos2').textContent = pos2 ? `Posició: ${pos2}` : 'Sense dades de lliga';
 
     document.getElementById('r-score1').textContent = pred.bestH;
     document.getElementById('r-score2').textContent = pred.bestA;
@@ -310,10 +310,10 @@ async function predict(){
     document.getElementById('bar-draw').style.width = pD + '%';
     document.getElementById('bar-away').style.width = pA + '%';
 
-    document.getElementById('st-gf1').textContent = d1.count ? (d1.gf / d1.count).toFixed(1) : '-';
-    document.getElementById('st-gf2').textContent = d2.count ? (d2.gf / d2.count).toFixed(1) : '-';
-    document.getElementById('st-ga1').textContent = d1.count ? (d1.ga / d1.count).toFixed(1) : '-';
-    document.getElementById('st-ga2').textContent = d2.count ? (d2.ga / d2.count).toFixed(1) : '-';
+    document.getElementById('st-gf1').textContent = gf1.toFixed(1);
+    document.getElementById('st-gf2').textContent = gf2.toFixed(1);
+    document.getElementById('st-ga1').textContent = ga1.toFixed(1);
+    document.getElementById('st-ga2').textContent = ga2.toFixed(1);
 
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('result').classList.remove('hidden');
