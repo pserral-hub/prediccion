@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="predicció">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230d0d0f'/%3E%3Ctext x='90' y='118' font-family='system-ui,sans-serif' font-size='80' font-weight='300' fill='%234ade80' text-anchor='middle'%3E%26%239917%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href='data:application/manifest+json,{"name":"predicció","short_name":"predicció","start_url":".","display":"standalone","background_color":"#0d0d0f","theme_color":"#0d0d0f"}'>
+<title>predicció</title>
+<style>
+:root{
+  --bg:#0d0d0f;--surface:#16161a;--surface-2:#1c1c22;
+  --border:#2a2a32;--text:#e4e4e7;--text2:#a1a1aa;--text3:#71717a;
+  --accent:#4ade80;--accent2:#7c9ce8;--danger:#f87171;
+  --radius:10px;--ease:cubic-bezier(.4,0,.2,1);
+}
+@media(prefers-color-scheme:light){
+  :root{
+    --bg:#fafafa;--surface:#fff;--surface-2:#f4f4f5;
+    --border:#e4e4e7;--text:#18181b;--text2:#52525b;--text3:#a1a1aa;
+    --accent:#16a34a;--accent2:#4a6fa5;--danger:#dc2626;
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:system-ui,-apple-system,sans-serif;
+  background:var(--bg);color:var(--text);
+  min-height:100dvh;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+}
+.wrap{
+  max-width:520px;margin:0 auto;
+  padding:calc(env(safe-area-inset-top) + 32px) 20px calc(env(safe-area-inset-bottom) + 32px);
+}
+.hdr{margin-bottom:28px}
+.hdr h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.hdr p{font-size:13px;color:var(--text3);margin-top:4px}
+
+.input-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;margin-bottom:20px;
+}
+.input-box .row{display:flex;gap:8px;align-items:center}
+.input-box .row .vs{font-size:12px;color:var(--text3);font-weight:600;padding:0 4px}
+.input-box input{
+  flex:1;padding:11px 14px;
+  border:1px solid var(--border);border-radius:8px;
+  font-size:14px;background:var(--bg);color:var(--text);outline:none;
+}
+.input-box input:focus{border-color:var(--accent)}
+.input-box input::placeholder{color:var(--text3)}
+.input-box button{
+  width:100%;margin-top:12px;padding:12px;
+  border:none;border-radius:8px;
+  background:var(--accent);color:var(--bg);
+  font-size:14px;font-weight:600;cursor:pointer;
+}
+.input-box button:active{opacity:.8}
+.input-box button:disabled{opacity:.4;cursor:not-allowed}
+
+/* result */
+.result{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:20px;margin-bottom:12px;
+}
+.result .teams{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.result .team{text-align:center;flex:1}
+.result .team .name{font-size:15px;font-weight:600}
+.result .team .form{display:flex;gap:3px;justify-content:center;margin-top:8px}
+.result .team .form .dot{
+  width:18px;height:18px;border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:700;color:var(--bg);
+}
+.result .team .form .dot.W{background:var(--accent)}
+.result .team .form .dot.D{background:var(--text3)}
+.result .team .form .dot.L{background:var(--danger)}
+.result .score{
+  font-size:32px;font-weight:700;letter-spacing:-.03em;
+  text-align:center;margin:16px 0;
+  font-variant-numeric:tabular-nums;
+}
+.result .score .dash{color:var(--text3);margin:0 8px}
+
+/* probabilities */
+.probs{margin-top:16px}
+.probs .bar{
+  display:flex;height:6px;border-radius:3px;overflow:hidden;
+  margin-bottom:10px;
+}
+.probs .bar .seg{transition:width .4s var(--ease)}
+.probs .bar .seg.home{background:var(--accent)}
+.probs .bar .seg.draw{background:var(--text3)}
+.probs .bar .seg.away{background:var(--accent2)}
+.probs .labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text3)}
+.probs .labels span b{color:var(--text);font-weight:600}
+
+/* stats */
+.stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;
+}
+.stats .stat{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;text-align:center;
+}
+.stats .stat .val{font-size:16px;font-weight:700}
+.stats .stat .lbl{font-size:10px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+
+/* loading */
+.loading{
+  text-align:center;padding:40px 0;
+  color:var(--text3);font-size:13px;
+}
+.loading .spinner{
+  width:20px;height:20px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin .6s linear infinite;margin:0 auto 12px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.hidden{display:none}
+.err-msg{color:var(--danger);font-size:13px;text-align:center;padding:12px 0}
+
+@media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <h1>predicció</h1>
+    <p>Posa dos equips i obtén una predicció basada en les seves dades recents</p>
+  </div>
+
+  <div class="input-box">
+    <div class="row">
+      <input type="text" id="t1" placeholder="Equip local" autocomplete="off">
+      <span class="vs">VS</span>
+      <input type="text" id="t2" placeholder="Equip visitant" autocomplete="off">
+    </div>
+    <button id="go-btn" onclick="predict()">Predir</button>
+  </div>
+
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div>
+    Buscant dades...
+  </div>
+
+  <div id="error" class="err-msg hidden"></div>
+
+  <div id="result" class="result hidden">
+    <div class="teams">
+      <div class="team">
+        <div class="name" id="r-name1"></div>
+        <div class="form" id="r-form1"></div>
+      </div>
+      <div class="team">
+        <div class="name" id="r-name2"></div>
+        <div class="form" id="r-form2"></div>
+      </div>
+    </div>
+    <div class="score">
+      <span id="r-score1">0</span><span class="dash">-</span><span id="r-score2">0</span>
+    </div>
+    <div class="probs">
+      <div class="bar">
+        <div class="seg home" id="bar-home"></div>
+        <div class="seg draw" id="bar-draw"></div>
+        <div class="seg away" id="bar-away"></div>
+      </div>
+      <div class="labels">
+        <span><b id="pct-home">0</b>% victòria</span>
+        <span><b id="pct-draw">0</b>% empat</span>
+        <span><b id="pct-away">0</b>% victòria</span>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="val" id="st-gf1">-</div><div class="lbl">gols marcats</div></div>
+      <div class="stat"><div class="val" id="st-gf2">-</div><div class="lbl">gols marcats</div></div>
+      <div class="stat"><div class="val" id="st-ga1">-</div><div class="lbl">gols patits</div></div>
+      <div class="stat"><div class="val" id="st-ga2">-</div><div class="lbl">gols patits</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://www.thesportsdb.com/api/v1/json/123';
+
+async function searchTeam(name){
+  const r = await fetch(`${API}/searchteams.php?t=${encodeURIComponent(name)}`);
+  const d = await r.json();
+  if(d.teams && d.teams.length > 0) return d.teams[0];
+  return null;
+}
+
+async function getTeamEvents(teamId){
+  try{
+    const r = await fetch(`${API}/eventslast.php?id=${teamId}`);
+    const d = await r.json();
+    if(d.results && d.results.length > 0) return d.results.slice(0, 5);
+  } catch(e){}
+  return [];
+}
+
+function parseForm(events){
+  const form = [];
+  let gf = 0, ga = 0;
+  for(const ev of events){
+    const hs = parseInt(ev.strHomeScore) || 0;
+    const as = parseInt(ev.strAwayScore) || 0;
+    const isHome = ev.intHomeTeam && ev.intHomeTeam.toString() === ev.idHome.toString();
+    const myGoals = isHome ? hs : as;
+    const theirGoals = isHome ? as : hs;
+    gf += myGoals;
+    ga += theirGoals;
+    if(myGoals > theirGoals) form.push('W');
+    else if(myGoals === theirGoals) form.push('D');
+    else form.push('L');
+  }
+  return { form, gf, ga, count: events.length };
+}
+
+function poisson(lambda, k){
+  let result = 1;
+  for(let i = 1; i <= k; i++) result *= lambda / i;
+  return result * Math.exp(-lambda);
+}
+
+function predictScores(lambdaHome, lambdaAway){
+  let pH = 0, pD = 0, pA = 0;
+  let bestH = 0, bestA = 0, bestP = 0;
+  for(let h = 0; h <= 6; h++){
+    for(let a = 0; a <= 6; a++){
+      const p = poisson(lambdaHome, h) * poisson(lambdaAway, a);
+      if(h > a) pH += p;
+      else if(h === a) pD += p;
+      else pA += p;
+      if(p > bestP){ bestP = p; bestH = h; bestA = a; }
+    }
+  }
+  return { pH, pD, pA, bestH, bestA };
+}
+
+async function predict(){
+  const n1 = document.getElementById('t1').value.trim();
+  const n2 = document.getElementById('t2').value.trim();
+  if(!n1 || !n2) return;
+
+  document.getElementById('go-btn').disabled = true;
+  document.getElementById('loading').classList.remove('hidden');
+  document.getElementById('result').classList.add('hidden');
+  document.getElementById('error').classList.add('hidden');
+
+  try{
+    const team1 = await searchTeam(n1);
+    const team2 = await searchTeam(n2);
+
+    if(!team1 || !team2){
+      const missing = !team1 ? n1 : n2;
+      throw `No he trobat "${missing}". Prova amb el nom oficial (ex: "Barcelona", "Real Madrid", "Liverpool").`;
+    }
+
+    const ev1 = await getTeamEvents(team1.idTeam);
+    const ev2 = await getTeamEvents(team2.idTeam);
+
+    const d1 = parseForm(ev1);
+    const d2 = parseForm(ev2);
+
+    // Calculate attack/defense ratings
+    const avgGF = 1.35, avgGA = 1.15; // league averages approx
+
+    let attack1 = d1.count ? d1.gf / d1.count : avgGF;
+    let defense1 = d1.count ? d1.ga / d1.count : avgGA;
+    let attack2 = d2.count ? d2.gf / d2.count : avgGF;
+    let defense2 = d2.count ? d2.ga / d2.count : avgGA;
+
+    // Poisson lambdas
+    let lambdaHome = (attack1 / avgGA) * (defense2 / avgGF) * avgGF * 1.25; // home advantage
+    let lambdaAway = (attack2 / avgGA) * (defense1 / avgGF) * avgGA;
+
+    // Clamp
+    lambdaHome = Math.max(0.2, Math.min(4, lambdaHome));
+    lambdaAway = Math.max(0.2, Math.min(4, lambdaAway));
+
+    const pred = predictScores(lambdaHome, lambdaAway);
+
+    // Render
+    document.getElementById('r-name1').textContent = team1.strTeam;
+    document.getElementById('r-name2').textContent = team2.strTeam;
+
+    document.getElementById('r-form1').innerHTML = d1.form.map(f => `<div class="dot ${f}">${f}</div>`).join('') || '<span style="font-size:11px;color:var(--text3)">sense dades</span>';
+    document.getElementById('r-form2').innerHTML = d2.form.map(f => `<div class="dot ${f}">${f}</div>`).join('') || '<span style="font-size:11px;color:var(--text3)">sense dades</span>';
+
+    document.getElementById('r-score1').textContent = pred.bestH;
+    document.getElementById('r-score2').textContent = pred.bestA;
+
+    const pH = Math.round(pred.pH * 100);
+    const pD = Math.round(pred.pD * 100);
+    const pA = 100 - pH - pD;
+
+    document.getElementById('pct-home').textContent = pH;
+    document.getElementById('pct-draw').textContent = pD;
+    document.getElementById('pct-away').textContent = pA;
+
+    document.getElementById('bar-home').style.width = pH + '%';
+    document.getElementById('bar-draw').style.width = pD + '%';
+    document.getElementById('bar-away').style.width = pA + '%';
+
+    document.getElementById('st-gf1').textContent = d1.count ? (d1.gf / d1.count).toFixed(1) : '-';
+    document.getElementById('st-gf2').textContent = d2.count ? (d2.gf / d2.count).toFixed(1) : '-';
+    document.getElementById('st-ga1').textContent = d1.count ? (d1.ga / d1.count).toFixed(1) : '-';
+    document.getElementById('st-ga2').textContent = d2.count ? (d2.ga / d2.count).toFixed(1) : '-';
+
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('result').classList.remove('hidden');
+
+  } catch(err){
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('error').textContent = err.message || 'Error buscant dades';
+    document.getElementById('error').classList.remove('hidden');
+  }
+
+  document.getElementById('go-btn').disabled = false;
+}
+
+document.getElementById('t1').onkeydown = e => { if(e.key === 'Enter') document.getElementById('t2').focus(); };
+document.getElementById('t2').onkeydown = e => { if(e.key === 'Enter') predict(); };
+</script>
+</body>
+</html>   
